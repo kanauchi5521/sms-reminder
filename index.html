@@ -21,8 +21,6 @@
     --stamp-wash: rgba(193,68,60,0.10);
     --whatsapp: #3E8E5B;
     --whatsapp-wash: rgba(62,142,91,0.10);
-    --lineapp: #1C8E78;
-    --lineapp-wash: rgba(28,142,120,0.10);
     --radius-lg: 20px;
     --radius-md: 14px;
     --radius-sm: 10px;
@@ -132,8 +130,6 @@
   .btn-small { padding: 8px 14px; font-size: 12.5px; width: auto; }
   .btn-primary { background: var(--indigo); color: #fff; }
   .btn-secondary { background: var(--paper); color: var(--ink); border: 1.5px solid var(--line); }
-  .btn-whatsapp { background: var(--whatsapp-wash); color: var(--whatsapp); }
-  .btn-line { background: var(--lineapp-wash); color: var(--lineapp); }
   .btn-danger { background: var(--stamp); color: #fff; }
   a.btn.disabled { opacity: 0.35; pointer-events: none; }
 
@@ -295,12 +291,6 @@ function formatTimestamp(iso) {
 }
 function cleanPhoneForSms(phone) {
   return phone.replace(/[\s\-()]/g, '');
-}
-function toInternational(phone) {
-  var p = phone.replace(/[\s\-()]/g, '');
-  if (p.startsWith('+')) return p.slice(1);
-  if (p.startsWith('0')) return '81' + p.slice(1);
-  return p;
 }
 
 /* アイコン (インラインSVG) */
@@ -464,14 +454,11 @@ function renderSendTab() {
     '<div class="step-label"><span class="step-num">03</span><span class="step-text">プレビューして送信</span></div>' +
     '<div class="preview-box" id="preview-text"></div>' +
     '<p class="char-count" id="char-count"></p>' +
-    '<div class="preview-actions"><button type="button" class="btn btn-secondary btn-small" id="copy-preview-btn" data-action="copy-preview">メッセージをコピー</button></div>' +
     '<div class="dispatch-divider"></div>' +
     '<a href="#" id="send-sms" class="btn btn-primary btn-block" data-action="log-send" data-channel="SMS" target="_top">' + iconSms() + '<span>SMSで送信</span></a>' +
     '<p class="hint" id="sms-hint"></p>' +
-    '<a href="#" id="send-whatsapp" class="btn btn-whatsapp btn-block" data-action="log-send" data-channel="WhatsApp" target="_top">' + iconChat() + '<span>WhatsAppで送信</span></a>' +
-    '<p class="hint" id="wa-hint"></p>' +
-    '<a href="#" id="send-line" class="btn btn-line btn-block" data-action="log-send" data-channel="LINE" target="_top">' + iconChat() + '<span>LINEで送る</span></a>' +
-    '<p class="hint">LINEアプリ内で送信先の友だちを選択してください。</p>' +
+    '<button type="button" class="btn btn-secondary btn-block" id="copy-preview-btn" data-action="copy-preview">' + iconChat() + '<span id="copy-preview-label">メッセージをコピー</span></button>' +
+    '<p class="hint">+メッセージなど、ほかのアプリに貼り付けて送る場合はこちらでコピーしてください。</p>' +
   '</div>';
 
   el.innerHTML = recipientSection + messageSection + sendSection;
@@ -510,30 +497,14 @@ function updateSendLinks(text) {
   }
   var smsHint = document.getElementById('sms-hint');
   if (smsHint) {
-    smsHint.textContent = (phone && !smsOk) ? 'この相手はSMS不可に設定されています。WhatsAppまたはLINEもご利用いただけます。' : '';
-  }
-
-  var waLink = document.getElementById('send-whatsapp');
-  var waHint = document.getElementById('wa-hint');
-  if (waLink) {
-    var waNumber = phone ? toInternational(phone) : '';
-    var waReady = !!(waNumber && text);
-    waLink.href = waReady ? ('https://wa.me/' + waNumber + '?text=' + encoded) : '#';
-    waLink.classList.toggle('disabled', !waReady);
-    if (waHint) waHint.textContent = waNumber ? ('送信先: +' + waNumber + '（先方がWhatsAppを利用している場合のみ届きます）') : '';
-  }
-
-  var lineLink = document.getElementById('send-line');
-  if (lineLink) {
-    var lineReady = !!text;
-    lineLink.href = lineReady ? ('https://line.me/R/share?text=' + encoded) : '#';
-    lineLink.classList.toggle('disabled', !lineReady);
+    smsHint.textContent = (phone && !smsOk) ? 'この相手はSMS不可に設定されています。下の「メッセージをコピー」から+メッセージ等でお送りください。' : '';
   }
 }
 
 async function handleCopyPreview() {
   var text = buildPreview();
   var btn = document.getElementById('copy-preview-btn');
+  var label = document.getElementById('copy-preview-label');
   if (!text || !btn) return;
   var ok = false;
   try {
@@ -553,8 +524,11 @@ async function handleCopyPreview() {
     } catch (e2) { ok = false; }
   }
   var original = 'メッセージをコピー';
-  btn.textContent = ok ? 'コピーしました ✓' : 'コピーできませんでした';
-  setTimeout(function() { btn.textContent = original; }, 1600);
+  if (label) {
+    label.textContent = ok ? 'コピーしました ✓' : 'コピーできませんでした';
+    setTimeout(function() { label.textContent = original; }, 1600);
+  }
+  if (ok) logSend('コピー');
 }
 
 function logSend(channel) {
@@ -772,11 +746,10 @@ function confirmAction(message, onConfirm) {
 function openInfoModal() {
   openModal(
     '<div class="modal-header"><h3>使い方</h3><button type="button" class="icon-btn" data-action="close-modal">✕</button></div>' +
-    '<p>このアプリはメッセージ内容を準備し、SMS・WhatsApp・LINEアプリを開く手伝いをします。</p>' +
+    '<p>このアプリはメッセージ内容を準備し、SMSアプリを開く手伝いをします。</p>' +
     '<p>安全上の理由から、Webアプリが自動でメッセージを送信することはできません。開いたアプリの中で、最後の送信操作はご自身で行ってください。</p>' +
-    '<p>送信ボタンをタップすると、このページから移動してSMSやWhatsApp・LINEアプリが開きます。Claudeの画面に戻りたいときは、ブラウザの「戻る」で戻れます。</p>' +
     '<p>SMSは端末や設定によって本文が自動入力されないことがあります。その場合は「メッセージをコピー」でコピーしてから、Messagesアプリに貼り付けてください。</p>' +
-    '<p>Messengerは電話番号だけでは相手を特定できないため、代わりにWhatsAppとLINEに対応しています。</p>' +
+    '<p>+メッセージには外部から電話番号とメッセージ内容を指定して開く仕組みが公開されていないため、ワンタップ送信には対応していません。「メッセージをコピー」でコピーしたあと、+メッセージアプリを開いて貼り付けてご利用ください。</p>' +
     '<p class="hint">ホーム画面に追加すると、アプリのように使えます（共有ボタン→「ホーム画面に追加」）。</p>'
   );
 }
