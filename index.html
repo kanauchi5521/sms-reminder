@@ -231,19 +231,32 @@ var state = {
 };
 
 /* ==================== ストレージ ==================== */
+function hasArtifactStorage() {
+  return (typeof window.storage !== 'undefined') && (typeof window.storage.get === 'function');
+}
+var storageWarned = {};
 async function loadData(key, fallback) {
   try {
-    var res = await window.storage.get(key);
-    if (res && res.value != null) return JSON.parse(res.value);
-    return fallback;
+    if (hasArtifactStorage()) {
+      var res = await window.storage.get(key);
+      if (res && res.value != null) return JSON.parse(res.value);
+      return fallback;
+    } else {
+      var raw = localStorage.getItem('sms-reminder:' + key);
+      if (raw != null) return JSON.parse(raw);
+      return fallback;
+    }
   } catch (e) {
     return fallback;
   }
 }
-var storageWarned = {};
 async function saveData(key, value) {
   try {
-    await window.storage.set(key, JSON.stringify(value));
+    if (hasArtifactStorage()) {
+      await window.storage.set(key, JSON.stringify(value));
+    } else {
+      localStorage.setItem('sms-reminder:' + key, JSON.stringify(value));
+    }
     storageWarned[key] = false;
   } catch (e) {
     if (!storageWarned[key]) {
